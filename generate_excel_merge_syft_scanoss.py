@@ -1,3 +1,10 @@
+"""
+generate_excel_merge_syft_scanoss.py
+Version: 1.1.0
+Universal merger of Syft SBOM and SCANOSS results to Excel
+Supports: Java (Maven, Gradle), NodeJS, Python, Go, C, etc.
+"""
+
 import pandas as pd
 import json
 import sys
@@ -14,13 +21,11 @@ def load_syft_sbom(syft_file):
         license_info = "Unknown"
         homepage = "N/A"
 
-        # Check for license info
         if "licenseConcluded" in package:
             license_info = package["licenseConcluded"]
         elif "foundLicenses" in package and package["foundLicenses"]:
             license_info = package["foundLicenses"][0]
 
-        # Check for homepage
         if "homepage" in package and package["homepage"]:
             homepage = package["homepage"]
 
@@ -38,36 +43,39 @@ def load_scanoss_results(scanoss_file):
         scanoss_data = json.load(f)
 
     components = []
-    matches = scanoss_data.get("matches", [])
-    for match in matches:
-        name = match.get("component", "Unknown")
-        version = match.get("version", "Unknown")
-        license_info = match.get("license", "Unknown")
-        homepage = match.get("url", "N/A")
 
-        components.append({
-            "Name": name,
-            "Version": version,
-            "License": license_info,
-            "License URL": homepage
-        })
+    for file_path, matches in scanoss_data.items():
+        for match in matches:
+            name = match.get("component", "Unknown")
+            version = match.get("version", "Unknown")
+
+            # License Handling
+            license_info = "Unknown"
+            license_url = "N/A"
+            licenses = match.get("licenses", [])
+            if licenses and isinstance(licenses, list):
+                license_info = licenses[0].get("name", "Unknown")
+                license_url = licenses[0].get("url", "N/A")
+
+            components.append({
+                "Name": name,
+                "Version": version,
+                "License": license_info,
+                "License URL": license_url
+            })
 
     return components
 
 def main(syft_sbom_path, scanoss_result_path):
-    # Load data
     syft_components = load_syft_sbom(syft_sbom_path)
     scanoss_components = load_scanoss_results(scanoss_result_path)
 
-    # Create DataFrames
     syft_df = pd.DataFrame(syft_components)
     scanoss_df = pd.DataFrame(scanoss_components)
 
-    # Save individual reports
     syft_df.to_excel("syft-compliance-report.xlsx", index=False)
     scanoss_df.to_excel("scanoss-compliance-report.xlsx", index=False)
 
-    # Merge
     merged_df = pd.concat([syft_df, scanoss_df], ignore_index=True).drop_duplicates()
     merged_df.to_excel("compliance-report.xlsx", index=False)
 
